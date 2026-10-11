@@ -1,0 +1,469 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="Rome Trip">
+<meta name="theme-color" content="#F3F1EC" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#121517" media="(prefers-color-scheme: dark)">
+<link rel="apple-touch-icon" href="icon-180.png">
+<link rel="manifest" href="manifest.json">
+<title>Rome Trip Map</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Marcellus&family=Figtree:wght@400;500;600;700&display=swap">
+<style>
+/* Layout: full-screen 3D map on top, day chips over it, scrollable itinerary sheet below. */
+:root{
+  --bg:#F3F1EC; --surface:#FFFFFF; --ink:#22262A; --muted:#6A6F73; --line:#DEDAD2;
+  --ground:#E7E3DA; --block:#D4CEC2; --river:#7FA9B5; --park:#C9D4BC;
+  --hotel:#22262A; --chip:#ECE8E0;
+  --sun:#C9553E; --mon:#B7801F; --tue:#4E7B3A; --wed:#2F6EA6; --thu:#8B4E9E; --fri:#56606A;
+  --display:"Marcellus", "Trajan Pro", Georgia, serif;
+  --body:"Figtree", -apple-system, "Helvetica Neue", Arial, sans-serif;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --bg:#121517; --surface:#1B1F22; --ink:#ECE9E3; --muted:#9BA1A6; --line:#2C3237;
+  --ground:#1A1E21; --block:#2C3338; --river:#2F5F6E; --park:#24302A;
+  --hotel:#ECE9E3; --chip:#252A2E;
+  --sun:#E8735B; --mon:#DDA23E; --tue:#79A85F; --wed:#5B9BD5; --thu:#B47CC6; --fri:#8E99A3;
+  color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#121517; --surface:#1B1F22; --ink:#ECE9E3; --muted:#9BA1A6; --line:#2C3237;
+  --ground:#1A1E21; --block:#2C3338; --river:#2F5F6E; --park:#24302A;
+  --hotel:#ECE9E3; --chip:#252A2E;
+  --sun:#E8735B; --mon:#DDA23E; --tue:#79A85F; --wed:#5B9BD5; --thu:#B47CC6; --fri:#8E99A3;
+  color-scheme:dark}
+html,body{height:100%}
+body{background:var(--bg);color:var(--ink);font-family:var(--body);overflow:hidden}
+.app{height:100%;display:flex;flex-direction:column}
+header{display:flex;align-items:baseline;justify-content:space-between;gap:12px;padding:10px 16px 6px}
+h1{font-family:var(--display);font-weight:400;font-size:1.45rem;letter-spacing:.04em;margin:0;text-wrap:balance}
+.dates{font-size:.78rem;color:var(--muted);letter-spacing:.08em;text-transform:uppercase;white-space:nowrap}
+.chips{display:flex;gap:6px;overflow-x:auto;padding:4px 16px 8px;scrollbar-width:none}
+.chips::-webkit-scrollbar{display:none}
+.chip{flex:0 0 auto;border:1px solid var(--line);background:var(--chip);color:var(--ink);font:600 .8rem var(--body);
+  padding:7px 11px;border-radius:999px;display:flex;align-items:center;gap:6px;cursor:pointer}
+.chip i{width:9px;height:9px;border-radius:50%;display:block}
+.chip[aria-pressed="true"]{background:var(--ink);color:var(--bg);border-color:var(--ink)}
+.chip:focus-visible,.btn:focus-visible,a:focus-visible,.lbl:focus-visible{outline:2px solid var(--wed);outline-offset:2px}
+.map{position:relative;flex:1 1 55%;min-height:240px;overflow:hidden;touch-action:none}
+.map canvas{display:block;width:100%;height:100%}
+.overlay{position:absolute;inset:0;pointer-events:none}
+.lbl{position:absolute;left:0;top:0;pointer-events:auto;transform:translate(-50%,-100%);white-space:nowrap;
+  background:var(--surface);color:var(--ink);border:1px solid var(--line);border-left:4px solid var(--c);
+  font:600 .72rem var(--body);padding:3px 7px 3px 5px;border-radius:5px;box-shadow:0 1px 4px rgba(0,0,0,.15);cursor:pointer;
+  display:flex;gap:5px;align-items:center}
+.lbl b{font-variant-numeric:tabular-nums;color:var(--c)}
+.lbl.dim{opacity:.35}
+.leg{position:absolute;left:0;top:0;transform:translate(-50%,-50%);white-space:nowrap;pointer-events:none;
+  background:var(--c);color:#fff;font:700 .68rem var(--body);padding:2px 6px;border-radius:999px;font-variant-numeric:tabular-nums}
+.hint{position:absolute;right:10px;bottom:8px;font-size:.68rem;color:var(--muted);pointer-events:none}
+.reset{position:absolute;right:10px;top:8px;pointer-events:auto}
+.btn{border:1px solid var(--line);background:var(--surface);color:var(--ink);font:600 .75rem var(--body);padding:6px 10px;border-radius:8px;cursor:pointer}
+.sheet{flex:0 1 45%;min-height:0;overflow-y:auto;background:var(--surface);border-top:1px solid var(--line);
+  padding:14px 16px calc(18px + env(safe-area-inset-bottom,0px));-webkit-overflow-scrolling:touch}
+.sheet h2{font-family:var(--display);font-weight:400;font-size:1.2rem;margin:0 0 2px;letter-spacing:.02em}
+.sub{color:var(--muted);font-size:.82rem;margin:0 0 12px}
+.stop{display:grid;grid-template-columns:30px 1fr;gap:10px;align-items:start}
+.num{width:26px;height:26px;border-radius:50%;background:var(--c);color:#fff;display:grid;place-items:center;font:700 .78rem var(--body)}
+.num.h{background:var(--hotel);color:var(--bg)}
+.stop .t{min-width:0}
+.stop strong{font-size:.95rem;font-weight:600}
+.time{font-variant-numeric:tabular-nums;font-weight:700;color:var(--c);margin-left:6px;font-size:.82rem}
+.note{color:var(--muted);font-size:.8rem;margin-top:2px;line-height:1.4}
+.legrow{display:grid;grid-template-columns:30px 1fr;gap:10px;margin:4px 0}
+.legrow .rail{justify-self:center;width:2px;background:repeating-linear-gradient(var(--c) 0 4px,transparent 4px 8px);min-height:34px}
+.legrow .info{font-size:.8rem;color:var(--ink);display:flex;flex-wrap:wrap;gap:4px 10px;align-items:center;padding-block:7px}
+.legrow .info span{font-variant-numeric:tabular-nums}
+a{color:var(--wed);font-weight:600;text-decoration:none}
+.daycard{display:grid;grid-template-columns:6px 1fr auto;gap:12px;align-items:center;padding:11px 0;border-bottom:1px solid var(--line);cursor:pointer;background:none;border-left:0;border-right:0;border-top:0;width:100%;text-align:left;color:var(--ink);font:inherit}
+.daycard .bar{align-self:stretch;border-radius:3px;background:var(--c)}
+.daycard .k{font-weight:700;font-size:.9rem}
+.daycard .v{color:var(--muted);font-size:.78rem;margin-top:2px}
+.daycard .tot{font-variant-numeric:tabular-nums;font-size:.78rem;color:var(--muted);text-align:right}
+.focus{outline:2px solid var(--c);border-radius:8px;outline-offset:4px}
+.foot{color:var(--muted);font-size:.72rem;margin-top:14px;line-height:1.45}
+.maperr{position:absolute;inset:12px;display:flex;flex-direction:column;gap:6px;justify-content:center;align-items:flex-start;
+  background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:16px;font-size:.85rem;line-height:1.4}
+.maperr code{font-size:.72rem;color:var(--muted);white-space:normal;word-break:break-word}
+.card{position:fixed;left:0;right:0;bottom:0;z-index:20;display:flex;justify-content:center;padding:0 12px calc(12px + env(safe-area-inset-bottom,0px))}
+.card .in{width:100%;max-width:460px;background:var(--surface);color:var(--ink);border:1px solid var(--line);border-radius:14px;box-shadow:0 8px 30px rgba(0,0,0,.25);overflow:hidden}
+.card .band{background:var(--c);color:#fff;padding:12px 44px 12px 14px;position:relative}
+.card .band small{display:block;font:600 .68rem var(--body);letter-spacing:.1em;text-transform:uppercase;opacity:.9}
+.card .band h3{font-family:var(--display);font-weight:400;font-size:1.3rem;margin:2px 0 0;text-wrap:balance}
+.card .x{position:absolute;right:8px;top:8px;width:32px;height:32px;border-radius:50%;border:0;background:rgba(255,255,255,.22);color:#fff;font:600 1rem var(--body);cursor:pointer}
+.card .ph{margin:0;border-radius:10px;overflow:hidden;background:var(--chip);position:relative}
+.card .ph img{display:block;width:100%;height:190px;object-fit:cover}
+.card .ph figcaption{position:absolute;right:6px;bottom:6px;font-size:.62rem;color:#fff;background:rgba(0,0,0,.45);padding:2px 6px;border-radius:4px}
+.card .body{padding:12px 14px 14px;display:flex;flex-direction:column;gap:12px}
+.card p{margin:0;font-size:.88rem;line-height:1.45;color:var(--ink)}
+.card .acts{display:grid;grid-template-columns:repeat(auto-fit,minmax(110px,1fr));gap:8px}
+.card .acts a{display:block;text-align:center;padding:10px 8px;border-radius:9px;border:1px solid var(--line);background:var(--chip);color:var(--ink);font:600 .82rem var(--body)}
+.card .acts a.pri{background:var(--c);border-color:var(--c);color:#fff}
+.stop strong.tap{cursor:pointer;text-decoration:underline;text-decoration-color:var(--line);text-underline-offset:3px}
+@media (min-width:900px){
+  .app{display:grid;grid-template-columns:1fr 400px;grid-template-rows:auto auto 1fr}
+  header,.chips{grid-column:1/-1}
+  .map{grid-column:1;grid-row:3}
+  .sheet{grid-column:2;grid-row:3;border-top:0;border-left:1px solid var(--line)}
+}
+@media (prefers-reduced-motion:reduce){*{scroll-behavior:auto}}
+</style>
+
+<style>:root{padding-top:env(safe-area-inset-top,0px)}body{margin:0;font-size:14px;-webkit-tap-highlight-color:transparent}[hidden]{display:none!important}img{max-width:100%}</style>
+</head>
+<body>
+<div class="app">
+  <header><h1>Rome · Ottobre</h1><span class="dates">18 – 23 Oct 2026</span></header>
+  <nav class="chips" id="chips" aria-label="Choose a day"></nav>
+  <div class="map" id="map">
+    <div class="overlay" id="overlay"></div>
+    <div class="reset"><button class="btn" id="resetBtn" type="button">Recentre</button></div>
+    <div class="hint">Drag to move · pinch to zoom · two fingers to tilt</div>
+  </div>
+  <section class="sheet" id="sheet" aria-live="polite"></section>
+  <div class="card" id="card" hidden role="dialog" aria-label="Place details"><div class="in"><div class="band"><small id="cardDay"></small><h3 id="cardName"></h3><button class="x" id="cardX" type="button" aria-label="Close">✕</button></div><div class="body"><figure class="ph" id="cardPh" hidden><img id="cardImg" alt=""><figcaption id="cardCap"></figcaption></figure><p id="cardNote"></p><div class="acts" id="cardActs"></div></div></div></div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+<script>
+(function(){
+// ---------- Data ----------
+const S = {
+  fco:{name:"Fiumicino Airport (FCO)",short:"Fiumicino ✈",lat:41.8003,lng:12.2389,offmap:true,note:"About 30 km from the centre."},
+  hotel:{name:"HiSuiteROME",short:"HiSuiteROME",lat:41.8996,lng:12.4689,hotel:true,note:"Via di Monte Giordano, near Piazza Navona. Check-in from 15:00, check-out by 10:00, luggage storage available."},
+  trevi:{name:"Trevi Fountain",short:"Trevi",lat:41.9009,lng:12.4833,note:"Busiest late afternoon. Go after dark for fewer crowds and the lighting."},
+  pantheon:{name:"Pantheon",short:"Pantheon",lat:41.8986,lng:12.4769,note:"Ticketed entry. Last entry is usually around 18:30."},
+  navona:{name:"Piazza Navona",short:"Navona",lat:41.8992,lng:12.4731,note:"Five minutes from the hotel. A good place to end the first evening."},
+  colosseum:{name:"Colosseum",short:"Colosseum",lat:41.8902,lng:12.4922,note:"Tripadvisor tour. Arrive 15 minutes early with ID."},
+  forum:{name:"Roman Forum",short:"Forum",lat:41.8925,lng:12.4853,note:"Usually on the same combined ticket as the Colosseum."},
+  palatine:{name:"Palatine Hill",short:"Palatine",lat:41.8894,lng:12.4875,note:"Shade is scarce. Take water."},
+  crypt:{name:"Capuchin Crypt",short:"Capuchin Crypt",lat:41.9045,lng:12.4886,note:"Via Veneto 27. No photography inside. Covered shoulders and knees."},
+  pizza:{name:"Crazy Pizza",short:"Crazy Pizza",lat:41.9078,lng:12.4893,note:"Via Vittorio Veneto 167. Some listings show lunch 12:30–15:00 and others evening only, so confirm the 1pm booking."},
+  peters:{name:"St Peter's Basilica",short:"St Peter's",lat:41.9022,lng:12.4539,note:"Free entry, security queue can be long. Dress code: covered shoulders and knees."},
+  bus:{name:"Hop-on/hop-off bus",short:"Hop-on bus",lat:41.9010,lng:12.5016,note:"Shown at Termini, the usual first stop. Most operators also stop near the Vatican and Piazza Venezia, so check your ticket's stop list."},
+  steps:{name:"Spanish Steps",short:"Spanish Steps",lat:41.9060,lng:12.4828,note:"Sitting on the steps is not allowed. Via Condotti runs straight down from the base."},
+  trastevere:{name:"Trastevere",short:"Trastevere",lat:41.8894,lng:12.4700,note:"Shown at Piazza di Santa Maria in Trastevere."},
+  isola:{name:"Isola Tiberina",short:"Isola Tiberina",lat:41.8906,lng:12.4775,note:"Cross by Ponte Cestio from Trastevere."},
+  tiber:{name:"Walk along the Tiber",short:"Tiber walk",lat:41.8798,lng:12.4748,note:"Riverside path south to Ponte Sublicio, then up to the Pyramid."},
+  pyramid:{name:"Pyramid of Cestius",short:"Pyramid",lat:41.8765,lng:12.4810,note:"Next to the Protestant Cemetery. Piramide metro (Line B) is right beside it."}
+};
+const DAYS = [
+  {key:"sun",label:"Sun 18",title:"Sunday 18 October",theme:"Arrival day",
+   stops:["fco","hotel","trevi","pantheon","navona","hotel"],modes:["taxi","walk","walk","walk","walk"],
+   times:{fco:"Land from Birmingham"}},
+  {key:"mon",label:"Mon 19",title:"Monday 19 October",theme:"Ancient Rome",
+   stops:["hotel","colosseum","forum","palatine","hotel"],modes:["walk","walk","walk","walk"],times:{colosseum:"11:00"}},
+  {key:"tue",label:"Tue 20",title:"Tuesday 20 October",theme:"Crypt, pizza, St Peter's",
+   stops:["hotel","crypt","pizza","peters","hotel"],modes:["walk","walk","walk","walk"],times:{crypt:"09:30",pizza:"13:00"},
+   legNotes:{2:"Long walk. A taxi takes about 15 min."}},
+  {key:"wed",label:"Wed 21",title:"Wednesday 21 October",theme:"Bus tour & Spanish Steps",
+   stops:["hotel","bus","steps","hotel"],modes:["walk","bus","walk"],
+   legNotes:{0:"Or join at the stop nearest the hotel on your operator's route."}},
+  {key:"thu",label:"Thu 22",title:"Thursday 22 October",theme:"Trastevere & the river",
+   stops:["hotel","trastevere","isola","tiber","pyramid","hotel"],modes:["walk","walk","walk","walk","walk"],
+   legNotes:{4:"Metro from Piramide or a taxi is quicker."}},
+  {key:"fri",label:"Fri 23",title:"Friday 23 October",theme:"Flight home",
+   stops:["hotel","fco"],modes:["taxi"],times:{fco:"19:00 flight"},
+   legNotes:{0:"Check out by 10:00 and leave bags at the hotel. Aim to leave for the airport by about 15:30."}}
+];
+
+// ---------- Geometry helpers ----------
+const LAT0=41.895, LNG0=12.478, KX=Math.cos(LAT0*Math.PI/180)*111320/10, KZ=110540/10;
+function proj(lat,lng){return {x:(lng-LNG0)*KX, z:-(lat-LAT0)*KZ};}
+function hav(a,b){const R=6371000,t=Math.PI/180,dl=(b.lat-a.lat)*t,dn=(b.lng-a.lng)*t;
+  const h=Math.sin(dl/2)**2+Math.cos(a.lat*t)*Math.cos(b.lat*t)*Math.sin(dn/2)**2;return 2*R*Math.asin(Math.sqrt(h));}
+function legInfo(aK,bK,mode){
+  const a=S[aK],b=S[bK];
+  if(mode==="taxi") return {chip:"~45 min",text:"About 45 min by taxi",km:null,min:0,mode};
+  if(mode==="bus") return {chip:"bus",text:"Ride the bus to the Spanish Steps stop",km:null,min:0,mode};
+  const m=hav(a,b)*1.3, min=Math.max(2,Math.round(m/80));
+  return {chip:min+" min",text:"~"+min+" min walk",km:(m/1000).toFixed(1),min,mode};
+}
+function placePos(k){
+  const s=S[k];
+  if(s.offmap){const p=proj(s.lat,s.lng),L=Math.hypot(p.x,p.z),r=300;return {x:p.x/L*r,z:p.z/L*r};}
+  return proj(s.lat,s.lng);
+}
+function css(n){return getComputedStyle(document.documentElement).getPropertyValue(n).trim();}
+function dirLink(aK,bK,mode){const a=S[aK],b=S[bK];
+  const tm=mode==="walk"?"walking":(mode==="bus"?"transit":"driving");
+  return "https://www.google.com/maps/dir/?api=1&origin="+a.lat+","+a.lng+"&destination="+b.lat+","+b.lng+"&travelmode="+tm;}
+function placeLink(k){const s=S[k];return "https://www.google.com/maps/search/?api=1&query="+s.lat+","+s.lng;}
+
+// ---------- Three.js scene (guarded) ----------
+const mapEl=document.getElementById("map"), overlay=document.getElementById("overlay");
+function firstDayOf(k){return DAYS.find(d=>d.stops.includes(k));}
+const keysAll=Object.keys(S);
+const labels={};let legChips=[];
+let G=null;
+function showMapError(msg){
+  const box=document.createElement("div");box.className="maperr";
+  box.innerHTML="<strong>The 3D map couldn't start on this device.</strong><span>The day-by-day list and directions links below still work.</span><code></code>";
+  box.querySelector("code").textContent=msg;mapEl.appendChild(box);
+}
+function init3D(){
+  if(typeof THREE==="undefined")throw new Error("3D library didn't load (check your internet connection).");
+  if(!THREE.MapControls)throw new Error("Map controls didn't load (check your internet connection).");
+  const tst=document.createElement("canvas");
+  if(!(tst.getContext("webgl")||tst.getContext("experimental-webgl")))throw new Error("WebGL is turned off or unavailable in this browser.");
+// ---------- Three.js scene ----------
+const renderer=new THREE.WebGLRenderer({antialias:true});
+renderer.setPixelRatio(Math.min(window.devicePixelRatio||1,2));
+mapEl.insertBefore(renderer.domElement,overlay);
+const scene=new THREE.Scene();
+const camera=new THREE.PerspectiveCamera(45,1,1,4000);
+camera.position.set(0,420,380);
+const controls=new THREE.MapControls(camera,renderer.domElement);
+controls.enableDamping=true;controls.dampingFactor=0.12;controls.maxPolarAngle=1.25;
+controls.minDistance=50;controls.maxDistance=1100;controls.screenSpacePanning=false;
+controls.target.set(0,0,20);
+
+scene.add(new THREE.HemisphereLight(0xffffff,0x888888,0.85));
+const sunL=new THREE.DirectionalLight(0xffffff,0.55);sunL.position.set(-200,400,150);scene.add(sunL);
+
+const groundMat=new THREE.MeshLambertMaterial();
+const ground=new THREE.Mesh(new THREE.PlaneGeometry(2400,2400),groundMat);
+ground.rotation.x=-Math.PI/2;scene.add(ground);
+
+// Tiber (approximate course through the centre)
+const tiberLL=[[41.9200,12.4690],[41.9140,12.4735],[41.9105,12.4742],[41.9047,12.4735],[41.9030,12.4712],[41.9017,12.4665],
+ [41.9005,12.4645],[41.8985,12.4630],[41.8960,12.4640],[41.8925,12.4703],[41.8915,12.4745],[41.8906,12.4778],
+ [41.8885,12.4797],[41.8840,12.4775],[41.8800,12.4745],[41.8740,12.4735],[41.8660,12.4720]];
+const tPts=tiberLL.map(p=>{const q=proj(p[0],p[1]);return new THREE.Vector3(q.x,0.25,q.z);});
+const tCurve=new THREE.CatmullRomCurve3(tPts);const tSamp=tCurve.getPoints(260);
+function ribbon(pts,w,y){const pos=[],idx=[];
+  for(let i=0;i<pts.length;i++){const a=pts[Math.max(0,i-1)],b=pts[Math.min(pts.length-1,i+1)];
+    const dx=b.x-a.x,dz=b.z-a.z,L=Math.hypot(dx,dz)||1,nx=-dz/L*w/2,nz=dx/L*w/2;
+    pos.push(pts[i].x+nx,y,pts[i].z+nz,pts[i].x-nx,y,pts[i].z-nz);
+    if(i<pts.length-1){const k=i*2;idx.push(k,k+1,k+2,k+1,k+3,k+2);}}
+  const g=new THREE.BufferGeometry();g.setAttribute("position",new THREE.Float32BufferAttribute(pos,3));g.setIndex(idx);g.computeVertexNormals();return g;}
+const riverMat=new THREE.MeshLambertMaterial({side:THREE.DoubleSide});
+scene.add(new THREE.Mesh(ribbon(tSamp,11,0.3),riverMat));
+
+// Parks (Villa Borghese, Palatine/Circus Maximus, Gianicolo) as flat patches
+const parkMat=new THREE.MeshLambertMaterial();
+const parks=[[41.9128,12.4880,70,45],[41.8880,12.4880,30,22],[41.8905,12.4625,22,45],[41.8838,12.4860,32,12]];
+const parkZones=[];
+parks.forEach(p=>{const q=proj(p[0],p[1]);const m=new THREE.Mesh(new THREE.PlaneGeometry(p[2]*2,p[3]*2),parkMat);
+  m.rotation.x=-Math.PI/2;m.position.set(q.x,0.2,q.z);scene.add(m);parkZones.push([q.x,q.z,p[2],p[3]]);});
+
+// Procedural city blocks for texture
+const stopPts=Object.keys(S).filter(k=>!S[k].offmap).map(placePos);
+let seed=7;function rnd(){seed=(seed*16807)%2147483647;return seed/2147483647;}
+const blockMat=new THREE.MeshLambertMaterial();
+const N=2600, inst=new THREE.InstancedMesh(new THREE.BoxGeometry(1,1,1),blockMat,N);
+const dm=new THREE.Object3D();let count=0;
+for(let i=0;i<N*3&&count<N;i++){
+  const x=(rnd()-0.5)*760,z=(rnd()-0.5)*680;
+  if(tSamp.some(p=>Math.hypot(p.x-x,p.z-z)<12))continue;
+  if(stopPts.some(p=>Math.hypot(p.x-x,p.z-z)<13))continue;
+  if(parkZones.some(z0=>Math.abs(x-z0[0])<z0[2]&&Math.abs(z-z0[1])<z0[3]))continue;
+  const w=3+rnd()*7,d=3+rnd()*7,h=1.2+rnd()*rnd()*7;
+  dm.position.set(x,h/2,z);dm.scale.set(w,h,d);dm.rotation.y=(rnd()-0.5)*0.5;dm.updateMatrix();inst.setMatrixAt(count++,dm.matrix);}
+inst.count=count;scene.add(inst);
+
+// Pins
+const pinMeshes={};
+keysAll.forEach(k=>{
+  const p=placePos(k),g=new THREE.Group(),h=S[k].hotel?18:14;
+  const mat=new THREE.MeshLambertMaterial({transparent:true});
+  const stick=new THREE.Mesh(new THREE.CylinderGeometry(0.5,0.5,h,8),mat);stick.position.y=h/2;
+  const head=new THREE.Mesh(S[k].hotel?new THREE.BoxGeometry(7,7,7):new THREE.SphereGeometry(3.6,20,14),mat);head.position.y=h;
+  const base=new THREE.Mesh(new THREE.CircleGeometry(4,24),mat);base.rotation.x=-Math.PI/2;base.position.y=0.5;
+  g.add(stick,head,base);g.position.set(p.x,0,p.z);scene.add(g);
+  pinMeshes[k]={group:g,mat,top:new THREE.Vector3(p.x,h+5,p.z)};
+});
+
+// Routes
+const routes=[];
+DAYS.forEach(d=>{for(let i=0;i<d.stops.length-1;i++){
+  const a=placePos(d.stops[i]),b=placePos(d.stops[i+1]);
+  const L=Math.hypot(b.x-a.x,b.z-a.z),lift=3+Math.min(L*0.12,40);
+  const cv=new THREE.QuadraticBezierCurve3(new THREE.Vector3(a.x,1.5,a.z),new THREE.Vector3((a.x+b.x)/2,lift*2,(a.z+b.z)/2),new THREE.Vector3(b.x,1.5,b.z));
+  const mat=new THREE.MeshBasicMaterial({transparent:true});
+  const mesh=new THREE.Mesh(new THREE.TubeGeometry(cv,40,d.stops[i+1]==="hotel"&&i>0?0.8:1.3,6),mat);scene.add(mesh);
+  routes.push({day:d.key,mesh,mat,mid:cv.getPoint(0.5),info:legInfo(d.stops[i],d.stops[i+1],d.modes[i])});
+}});
+
+// ---------- Overlay labels ----------
+keysAll.forEach(k=>{const b=document.createElement("button");b.type="button";b.className="lbl";
+  b.addEventListener("click",()=>{focusStop(k);showCard(k);});overlay.appendChild(b);labels[k]=b;});
+
+  G={renderer,scene,camera,controls,groundMat,blockMat,riverMat,parkMat,pinMeshes,routes};
+}
+try{init3D();}catch(e){G=null;overlay.innerHTML="";showMapError(String(e&&e.message||e));document.querySelector(".hint").hidden=true;document.querySelector(".reset").hidden=true;}
+
+// ---------- State & UI ----------
+let current="all",focused=null;
+try{const s=localStorage.getItem("rome-day");if(s&&(s==="all"||DAYS.some(d=>d.key===s)))current=s;}catch(e){}
+const chipsEl=document.getElementById("chips"),sheet=document.getElementById("sheet");
+function dayColor(key){return css("--"+key);}
+function renderChips(){
+  chipsEl.innerHTML="";
+  [{key:"all",label:"Whole trip"}].concat(DAYS).forEach(d=>{
+    const b=document.createElement("button");b.type="button";b.className="chip";b.setAttribute("aria-pressed",String(current===d.key));
+    b.innerHTML=(d.key!=="all"?'<i style="background:var(--'+d.key+')"></i>':"")+d.label;
+    b.addEventListener("click",()=>selectDay(d.key));chipsEl.appendChild(b);});
+}
+function dayTotals(d){let km=0,min=0;d.modes.forEach((m,i)=>{const L=legInfo(d.stops[i],d.stops[i+1],m);if(L.km){km+=+L.km;min+=L.min;}});return {km,min};}
+function fmtMin(m){return m>=60?Math.floor(m/60)+" h "+(m%60)+" min":m+" min";}
+
+function renderSheet(){
+  if(current==="all"){
+    let h='<h2>Six days in Rome</h2><p class="sub">Birmingham → Rome, Sun 18 to Fri 23 October. Staying at HiSuiteROME near Piazza Navona. Tap a day to see its route.</p>';
+    DAYS.forEach(d=>{const t=dayTotals(d);
+      h+='<button type="button" class="daycard" data-day="'+d.key+'" style="--c:var(--'+d.key+')"><span class="bar"></span><span><div class="k">'+d.title+'</div><div class="v">'+d.theme+' · '+d.stops.filter((s,i)=>!(s==="hotel"&&i>0)).map(s=>S[s].short).join(", ")+'</div></span><span class="tot">'+(t.km?t.km.toFixed(1)+" km<br>"+fmtMin(t.min)+" walk":"Travel")+'</span></button>';});
+    h+='<p class="foot">Walking times are estimates from straight-line distance plus 30% for Rome\'s winding streets, at an easy pace. Each “Directions” link opens Google Maps for the exact route.</p>';
+    sheet.innerHTML=h;
+    sheet.querySelectorAll(".daycard").forEach(b=>b.addEventListener("click",()=>selectDay(b.dataset.day)));
+    return;
+  }
+  const d=DAYS.find(x=>x.key===current),t=dayTotals(d);
+  let h='<div style="--c:var(--'+d.key+')"><h2>'+d.title+'</h2><p class="sub">'+d.theme+(t.km?' · about '+t.km.toFixed(1)+' km, '+fmtMin(t.min)+' on foot':'')+'</p>';
+  let n=0;
+  d.stops.forEach((k,i)=>{
+    const s=S[k],isH=s.hotel,lab=isH?"H":(s.offmap?"✈":String(++n));
+    const ret=isH&&i>0;
+    h+='<div class="stop" id="st-'+k+'-'+i+'"><span class="num'+(isH?" h":"")+'">'+lab+'</span><div class="t"><strong'+(ret?'':' class="tap" data-k="'+k+'" tabindex="0" role="button"')+'>'+(ret?"Back to "+s.name:s.name)+'</strong>'+(d.times&&d.times[k]?'<span class="time">'+d.times[k]+'</span>':"")+
+      (ret?"":'<div class="note">'+s.note+' <a href="'+placeLink(k)+'" target="_blank" rel="noopener">Map</a></div>')+'</div></div>';
+    if(i<d.stops.length-1){const L=legInfo(k,d.stops[i+1],d.modes[i]);
+      h+='<div class="legrow"><span class="rail"></span><div class="info"><span><b>'+L.text+'</b>'+(L.km?' · '+L.km+' km':'')+'</span><a href="'+dirLink(k,d.stops[i+1],d.modes[i])+'" target="_blank" rel="noopener">Directions</a>'+
+        (d.legNotes&&d.legNotes[i]?'<span class="note" style="flex-basis:100%;margin:0">'+d.legNotes[i]+'</span>':"")+'</div></div>';}
+  });
+  h+='</div>';sheet.innerHTML=h;sheet.scrollTop=0;
+  sheet.querySelectorAll('.tap').forEach(el=>{const go=()=>{focusStop(el.dataset.k);showCard(el.dataset.k);};el.addEventListener('click',go);el.addEventListener('keydown',e=>{if(e.key==='Enter')go();});});
+}
+
+function applyColors(){
+  if(!G)return;
+  try{
+    G.renderer.setClearColor(new THREE.Color(css("--bg")));
+    G.groundMat.color=new THREE.Color(css("--ground"));G.scene.fog=new THREE.Fog(new THREE.Color(css("--bg")),700,1500);
+    G.blockMat.color=new THREE.Color(css("--block"));G.riverMat.color=new THREE.Color(css("--river"));G.parkMat.color=new THREE.Color(css("--park"));
+  }catch(e){}
+  applyState();
+}
+function applyState(){
+  if(!G)return;
+  const dayKeys=current==="all"?null:DAYS.find(d=>d.key===current).stops;
+  keysAll.forEach(k=>{const pm=G.pinMeshes[k],fd=firstDayOf(k);
+    const dk=dayKeys&&dayKeys.includes(k)?current:fd.key;
+    pm.mat.color=new THREE.Color(S[k].hotel?css("--hotel"):css("--"+dk));const on=!dayKeys||dayKeys.includes(k);pm.mat.opacity=on?1:0.25;
+    const lb=labels[k];lb.style.setProperty("--c",S[k].hotel?"var(--hotel)":"var(--"+dk+")");
+    lb.classList.toggle("dim",!on);
+    let num="";if(dayKeys&&on&&!S[k].hotel&&!S[k].offmap){num=String(dayKeys.filter(s=>!S[s].hotel&&!S[s].offmap).indexOf(k)+1);}
+    lb.innerHTML=(num?"<b>"+num+"</b>":"")+(S[k].hotel?"<b>H</b>":"")+S[k].short;
+    lb.hidden=!!(dayKeys&&!on&&window.innerWidth<600);
+  });
+  G.routes.forEach(r=>{r.mat.color=new THREE.Color(css("--"+r.day));r.mat.opacity=(current==="all"||r.day===current)?(current==="all"?0.75:1):0.08;});
+  legChips.forEach(c=>c.el.remove());legChips=[];
+  if(current!=="all"){G.routes.filter(r=>r.day===current).forEach(r=>{const el=document.createElement("div");el.className="leg";
+    el.style.background="var(--"+r.day+")";el.textContent=r.info.chip;overlay.appendChild(el);legChips.push({el,pos:r.mid});});}
+}
+
+// Camera framing
+let anim=null;
+function frame(keys){
+  if(!G)return;
+  const pts=keys.filter(k=>!S[k].offmap||keys.every(x=>S[x].offmap||S[x].hotel)).map(placePos);
+  let minx=1e9,maxx=-1e9,minz=1e9,maxz=-1e9;pts.forEach(p=>{minx=Math.min(minx,p.x);maxx=Math.max(maxx,p.x);minz=Math.min(minz,p.z);maxz=Math.max(maxz,p.z);});
+  const cx=(minx+maxx)/2,cz=(minz+maxz)/2,aspect=G.camera.aspect||1;
+  const span=Math.max(maxx-minx,(maxz-minz)*aspect,80)/Math.min(aspect,1.4);
+  const dist=Math.max(150,span*1.25);
+  const toT=new THREE.Vector3(cx,0,cz),toP=new THREE.Vector3(cx,dist*0.82,cz+dist*0.62);
+  anim={t:0,fT:G.controls.target.clone(),fP:G.camera.position.clone(),toT,toP};
+  if(window.matchMedia&&window.matchMedia("(prefers-reduced-motion: reduce)").matches)anim.t=0.999;
+}
+function frameCurrent(){frame(current==="all"?keysAll:DAYS.find(d=>d.key===current).stops);}
+function selectDay(k){if(typeof cardEl!=="undefined")cardEl.hidden=true;current=k;focused=null;try{localStorage.setItem("rome-day",k);}catch(e){}renderChips();renderSheet();applyState();frameCurrent();}
+function focusStop(k){
+  if(current==="all"||!DAYS.find(d=>d.key===current).stops.includes(k)){const d=firstDayOf(k);if(S[k].hotel){frame([k]);return;}selectDay(d.key);}
+  if(G){const p=placePos(k),dist=170;
+    anim={t:0,fT:G.controls.target.clone(),fP:G.camera.position.clone(),toT:new THREE.Vector3(p.x,0,p.z),toP:new THREE.Vector3(p.x,dist*0.8,p.z+dist*0.6)};}
+  const el=sheet.querySelector('[id^="st-'+k+'-"]');sheet.querySelectorAll(".focus").forEach(e=>e.classList.remove("focus"));
+  if(el){el.classList.add("focus");el.style.setProperty("--c","var(--"+current+")");el.scrollIntoView({block:"nearest"});}
+}
+document.getElementById("resetBtn").addEventListener("click",frameCurrent);
+
+function resize(){if(!G)return;const w=mapEl.clientWidth,h=mapEl.clientHeight;if(!w||!h)return;G.renderer.setSize(w,h,false);G.camera.aspect=w/h;G.camera.updateProjectionMatrix();}
+if(window.ResizeObserver)new ResizeObserver(resize).observe(mapEl);
+window.addEventListener("resize",resize);window.addEventListener("orientationchange",()=>setTimeout(resize,300));
+
+try{const mq=window.matchMedia("(prefers-color-scheme: dark)");if(mq.addEventListener)mq.addEventListener("change",applyColors);else if(mq.addListener)mq.addListener(applyColors);}catch(e){}
+new MutationObserver(applyColors).observe(document.documentElement,{attributes:true,attributeFilter:["data-theme"]});
+
+
+// ---------- Place card ----------
+const WIKI={"fco": "Leonardo_da_Vinci\u2013Fiumicino_Airport", "hotel": null, "trevi": "Trevi_Fountain", "pantheon": "Pantheon,_Rome", "navona": "Piazza_Navona", "colosseum": "Colosseum", "forum": "Roman_Forum", "palatine": "Palatine_Hill", "crypt": "Capuchin_Crypt", "pizza": null, "peters": "St._Peter's_Basilica", "bus": null, "steps": "Spanish_Steps", "trastevere": "Trastevere", "isola": "Tiber_Island", "tiber": "Tiber", "pyramid": "Pyramid_of_Cestius"};
+const PHOTOQ={hotel:"HiSuiteROME Via di Monte Giordano Rome",pizza:"Crazy Pizza Via Veneto Rome",bus:"Rome hop on hop off bus",fco:"Rome Fiumicino airport"};
+const cardEl=document.getElementById("card");
+function showCard(k){
+  cardEl.dataset.k=k;
+  const s=S[k],d=current!=="all"&&DAYS.find(x=>x.key===current).stops.includes(k)?DAYS.find(x=>x.key===current):firstDayOf(k);
+  cardEl.style.setProperty("--c",s.hotel?"var(--hotel)":"var(--"+d.key+")");
+  if(s.hotel)cardEl.querySelector(".band").style.color="var(--bg)";else cardEl.querySelector(".band").style.color="#fff";
+  document.getElementById("cardDay").textContent=s.hotel?"Your base all week":d.title;
+  document.getElementById("cardName").textContent=s.name;
+  document.getElementById("cardNote").textContent=s.note;
+  const q=encodeURIComponent(PHOTOQ[k]||(s.name+" Rome"));
+  let a='<a class="pri" href="https://www.google.com/search?tbm=isch&q='+q+'" target="_blank" rel="noopener">See photos</a>';
+  if(WIKI[k])a+='<a href="https://en.m.wikipedia.org/wiki/'+encodeURIComponent(WIKI[k])+'" target="_blank" rel="noopener">Wikipedia</a>';
+  a+='<a href="'+placeLink(k)+'" target="_blank" rel="noopener">Open in Maps</a>';
+  document.getElementById("cardActs").innerHTML=a;
+  loadPhoto(k);
+  cardEl.hidden=false;
+}
+const photoCache={};
+function loadPhoto(k){
+  const ph=document.getElementById("cardPh"),img=document.getElementById("cardImg");
+  ph.hidden=true;img.removeAttribute("src");
+  if(!WIKI[k])return;
+  const show=u=>{if(!u||cardEl.dataset.k!==k)return;img.onload=()=>{if(cardEl.dataset.k===k)ph.hidden=false;};img.onerror=()=>{ph.hidden=true;};img.src=u;
+    img.alt="Photo of "+S[k].name;document.getElementById("cardCap").textContent="Photo: Wikipedia";};
+  if(photoCache[k]){show(photoCache[k]);return;}
+  fetch("https://en.wikipedia.org/api/rest_v1/page/summary/"+encodeURIComponent(WIKI[k]))
+    .then(r=>r.ok?r.json():null)
+    .then(j=>{if(!j)return;const t=j.thumbnail&&j.thumbnail.source,o=j.originalimage&&j.originalimage.source;
+      let u=t?t.replace(/\/(\d+)px-/,"/800px-"):o; if(t&&o&&/\.(svg|tif)/i.test(o))u=t; photoCache[k]=u;show(u);})
+    .catch(()=>{});
+}
+document.getElementById("cardX").addEventListener("click",()=>{cardEl.hidden=true;});
+document.addEventListener("keydown",e=>{if(e.key==="Escape")cardEl.hidden=true;});
+
+// Always render the itinerary first, independent of the 3D map
+renderChips();renderSheet();
+
+if(G){
+  const v=new THREE.Vector3();
+  const place=(el,pos)=>{v.copy(pos).project(G.camera);
+    if(v.z>1||v.z<-1){el.style.visibility="hidden";return;}
+    el.style.visibility="visible";el.style.left=((v.x+1)/2*mapEl.clientWidth)+"px";el.style.top=((1-v.y)/2*mapEl.clientHeight)+"px";};
+  let failed=false;
+  const tick=()=>{
+    if(failed)return;requestAnimationFrame(tick);
+    try{
+      if(anim){anim.t=Math.min(1,anim.t+0.035);const e=1-Math.pow(1-anim.t,3);
+        G.controls.target.lerpVectors(anim.fT,anim.toT,e);G.camera.position.lerpVectors(anim.fP,anim.toP,e);if(anim.t>=1)anim=null;}
+      G.controls.update();G.renderer.render(G.scene,G.camera);
+      keysAll.forEach(k=>place(labels[k],G.pinMeshes[k].top));
+      legChips.forEach(c=>place(c.el,c.pos));
+    }catch(e){failed=true;showMapError(String(e&&e.message||e));}
+  };
+  G.controls.addEventListener("start",()=>{anim=null;});
+  try{
+    resize();applyColors();frameCurrent();
+    if(anim){G.controls.target.copy(anim.toT);G.camera.position.copy(anim.toP);anim=null;}
+    tick();
+  }catch(e){showMapError(String(e&&e.message||e));}
+}
+})();
+</script>
+
+<script>if("serviceWorker" in navigator&&location.protocol==="https:"){navigator.serviceWorker.register("sw.js").catch(function(){});}</script>
+</body>
+</html>
