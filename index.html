@@ -423,13 +423,13 @@ function loadPhoto(k){
   const ph=document.getElementById("cardPh"),img=document.getElementById("cardImg");
   ph.hidden=true;img.removeAttribute("src");
   if(!WIKI[k])return;
-  const show=u=>{if(!u||cardEl.dataset.k!==k)return;img.onload=()=>{if(cardEl.dataset.k===k)ph.hidden=false;};img.onerror=()=>{ph.hidden=true;};img.src=u;
+  const show=(u,fb)=>{if(!u||cardEl.dataset.k!==k)return;img.onload=()=>{if(cardEl.dataset.k===k)ph.hidden=false;};img.onerror=()=>{if(fb&&img.src!==fb){const f=fb;fb=null;img.src=f;}else ph.hidden=true;};img.src=u;
     img.alt="Photo of "+S[k].name;document.getElementById("cardCap").textContent="Photo: Wikipedia";};
-  if(photoCache[k]){show(photoCache[k]);return;}
+  if(photoCache[k]){show(photoCache[k][0],photoCache[k][1]);return;}
   fetch("https://en.wikipedia.org/api/rest_v1/page/summary/"+encodeURIComponent(WIKI[k]))
     .then(r=>r.ok?r.json():null)
     .then(j=>{if(!j)return;const t=j.thumbnail&&j.thumbnail.source,o=j.originalimage&&j.originalimage.source;
-      let u=t?t.replace(/\/(\d+)px-/,"/800px-"):o; if(t&&o&&/\.(svg|tif)/i.test(o))u=t; photoCache[k]=u;show(u);})
+      let u=t?t.replace(/\/(\d+)px-/,"/960px-"):o; if(t&&o&&/\.(svg|tif)/i.test(o))u=t; photoCache[k]=[u,t];show(u,t);})
     .catch(()=>{});
 }
 document.getElementById("cardX").addEventListener("click",()=>{cardEl.hidden=true;});
