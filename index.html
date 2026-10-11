@@ -104,6 +104,21 @@ a{color:var(--wed);font-weight:600;text-decoration:none}
 .card .acts a{display:block;text-align:center;padding:10px 8px;border-radius:9px;border:1px solid var(--line);background:var(--chip);color:var(--ink);font:600 .82rem var(--body)}
 .card .acts a.pri{background:var(--c);border-color:var(--c);color:#fff}
 .stop strong.tap{cursor:pointer;text-decoration:underline;text-decoration-color:var(--line);text-underline-offset:3px}
+.hdr-r{display:flex;align-items:center;gap:10px}
+.phr{position:fixed;inset:0;z-index:30;background:var(--bg);color:var(--ink);display:flex;flex-direction:column;padding-top:env(safe-area-inset-top,0px)}
+.phr-top{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:10px 16px 4px}
+.phr-top h2{font-family:var(--display);font-weight:400;font-size:1.35rem;margin:0}
+.phr-top p{margin:2px 0 0;color:var(--muted);font-size:.78rem}
+.phr-list{flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch;padding:4px 16px calc(24px + env(safe-area-inset-bottom,0px))}
+.phr-list h3{font:700 .7rem var(--body);letter-spacing:.12em;text-transform:uppercase;color:var(--muted);margin:18px 0 6px}
+.pr{display:grid;grid-template-columns:1fr auto;gap:10px;align-items:center;padding:10px 0;border-bottom:1px solid var(--line)}
+.pr .it{font-size:1.02rem;font-weight:600;line-height:1.3}
+.pr .say{font-size:.78rem;color:var(--sun);margin-top:2px;letter-spacing:.01em}
+.pr .en{font-size:.82rem;color:var(--muted);margin-top:2px}
+.pr .t{min-width:0}
+.play{width:38px;height:38px;border-radius:50%;border:1px solid var(--line);background:var(--surface);color:var(--ink);font:600 .9rem var(--body);cursor:pointer;display:grid;place-items:center}
+.play:active{background:var(--chip)}
+.numgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:0 16px}
 @media (min-width:900px){
   .app{display:grid;grid-template-columns:1fr 400px;grid-template-rows:auto auto 1fr}
   header,.chips{grid-column:1/-1}
@@ -117,7 +132,7 @@ a{color:var(--wed);font-weight:600;text-decoration:none}
 </head>
 <body>
 <div class="app">
-  <header><h1>Rome · Ottobre</h1><span class="dates">18 – 23 Oct 2026</span></header>
+  <header><h1>Rome · Ottobre</h1><div class="hdr-r"><span class="dates">18–23 Oct</span><button class="btn" id="phOpen" type="button">Phrases</button></div></header>
   <nav class="chips" id="chips" aria-label="Choose a day"></nav>
   <div class="map" id="map">
     <div class="overlay" id="overlay"></div>
@@ -125,6 +140,7 @@ a{color:var(--wed);font-weight:600;text-decoration:none}
     <div class="hint">Drag to move · pinch to zoom · two fingers to tilt</div>
   </div>
   <section class="sheet" id="sheet" aria-live="polite"></section>
+  <div class="phr" id="phr" hidden role="dialog" aria-label="Italian phrases"><div class="phr-top"><div><h2>Italian phrases</h2><p>For the four of you. Tap ▶ to hear it.</p></div><button class="btn" id="phClose" type="button">Done</button></div><nav class="chips" id="phChips" aria-label="Phrase topics"></nav><div class="phr-list" id="phList"></div></div>
   <div class="card" id="card" hidden role="dialog" aria-label="Place details"><div class="in"><div class="band"><small id="cardDay"></small><h3 id="cardName"></h3><button class="x" id="cardX" type="button" aria-label="Close">✕</button></div><div class="body"><figure class="ph" id="cardPh" hidden><img id="cardImg" alt=""><figcaption id="cardCap"></figcaption></figure><p id="cardNote"></p><div class="acts" id="cardActs"></div></div></div></div>
 </div>
 
@@ -181,7 +197,7 @@ function legInfo(aK,bK,mode){
   const a=S[aK],b=S[bK];
   if(mode==="taxi") return {chip:"~45 min",text:"About 45 min by taxi",km:null,min:0,mode};
   if(mode==="bus") return {chip:"bus",text:"Ride the bus to the Spanish Steps stop",km:null,min:0,mode};
-  const m=hav(a,b)*1.3, min=Math.max(2,Math.round(m/80));
+  const m=hav(a,b)*1.3, min=Math.max(2,Math.round(m/70));
   return {chip:min+" min",text:"~"+min+" min walk",km:(m/1000).toFixed(1),min,mode};
 }
 function placePos(k){
@@ -318,7 +334,7 @@ function renderSheet(){
     let h='<h2>Six days in Rome</h2><p class="sub">Birmingham → Rome, Sun 18 to Fri 23 October. Staying at HiSuiteROME near Piazza Navona. Tap a day to see its route.</p>';
     DAYS.forEach(d=>{const t=dayTotals(d);
       h+='<button type="button" class="daycard" data-day="'+d.key+'" style="--c:var(--'+d.key+')"><span class="bar"></span><span><div class="k">'+d.title+'</div><div class="v">'+d.theme+' · '+d.stops.filter((s,i)=>!(s==="hotel"&&i>0)).map(s=>S[s].short).join(", ")+'</div></span><span class="tot">'+(t.km?t.km.toFixed(1)+" km<br>"+fmtMin(t.min)+" walk":"Travel")+'</span></button>';});
-    h+='<p class="foot">Walking times are estimates from straight-line distance plus 30% for Rome\'s winding streets, at an easy pace. Each “Directions” link opens Google Maps for the exact route.</p>';
+    h+='<p class="foot">Walking times are estimates from straight-line distance plus 30% for Rome\'s winding streets, at a relaxed family pace with children. Each “Directions” link opens Google Maps for the exact route.</p>';
     sheet.innerHTML=h;
     sheet.querySelectorAll(".daycard").forEach(b=>b.addEventListener("click",()=>selectDay(b.dataset.day)));
     return;
@@ -434,6 +450,32 @@ function loadPhoto(k){
 }
 document.getElementById("cardX").addEventListener("click",()=>{cardEl.hidden=true;});
 document.addEventListener("keydown",e=>{if(e.key==="Escape")cardEl.hidden=true;});
+
+// ---------- Phrases ----------
+const PHRASES=[{"cat": "Basics", "items": [["Buongiorno", "bwon-JOR-no", "Hello / good morning (until mid-afternoon)"], ["Buonasera", "bwon-ah-SAIR-ah", "Good evening (from about 4pm)"], ["Arrivederci", "ah-ree-veh-DAIR-chee", "Goodbye"], ["Per favore", "pair fah-VOR-eh", "Please"], ["Grazie mille", "GRAHT-see-eh MEE-leh", "Thank you very much"], ["Prego", "PRAY-go", "You're welcome / go ahead"], ["Scusi", "SKOO-zee", "Excuse me / sorry"], ["Permesso", "pair-MESS-oh", "Excuse me, can we get past?"], ["Parla inglese?", "PAR-la een-GLAY-zay", "Do you speak English?"], ["Non capisco", "non ka-PEES-ko", "I don't understand"], ["Può ripetere più lentamente?", "pwoh ree-PEH-teh-reh pyoo len-ta-MEN-teh", "Could you say that again more slowly?"]]}, {"cat": "Eating out", "items": [["Un tavolo per quattro, per favore", "oon TAH-vo-lo pair KWAT-tro", "A table for four, please"], ["Abbiamo una prenotazione a nome Simmons", "ab-BYAH-mo OO-na preh-no-tat-SYOH-neh ah NO-meh SIM-mons", "We have a booking under Simmons"], ["Avete un menù per bambini?", "ah-VEH-teh oon meh-NOO pair bam-BEE-nee", "Do you have a children's menu?"], ["Due mezze porzioni per i bambini", "DOO-eh MED-zeh por-TSYOH-nee pair ee bam-BEE-nee", "Two half portions for the children"], ["Vorremmo…", "vor-REM-mo", "We would like…"], ["Una bottiglia d'acqua naturale", "OO-na bot-TEEL-ya DAK-wa nat-oo-RAH-leh", "A bottle of still water"], ["Una bottiglia d'acqua frizzante", "OO-na bot-TEEL-ya DAK-wa freet-SAN-teh", "A bottle of sparkling water"], ["Possiamo pagare con la carta?", "pos-SYAH-mo pa-GAH-reh kon la KAR-ta", "Can we pay by card?"], ["Il conto, per favore", "eel KON-toh", "The bill, please (you have to ask for it)"], ["Era buonissimo!", "EH-ra bwon-EE-see-mo", "It was delicious!"]]}, {"cat": "Gelato & café", "items": [["Due coni e due coppette, per favore", "DOO-eh KO-nee eh DOO-eh kop-PET-teh", "Two cones and two cups, please"], ["Quanti gusti?", "KWAN-tee GOO-stee", "How many flavours? (they'll ask you)"], ["Cioccolato", "chok-ko-LAH-toh", "Chocolate"], ["Fragola", "FRAH-go-la", "Strawberry"], ["Pistacchio", "pee-STAK-kyo", "Pistachio"], ["Stracciatella", "strat-cha-TEL-la", "Vanilla with chocolate chips"], ["Un cappuccino", "oon kap-poo-CHEE-no", "A cappuccino (a morning drink in Italy)"], ["Due cioccolate calde", "DOO-eh chok-ko-LAH-teh KAL-deh", "Two hot chocolates"], ["Una spremuta d'arancia", "OO-na spreh-MOO-ta da-RAN-cha", "A fresh orange juice"]]}, {"cat": "Sights & tickets", "items": [["Due adulti e due bambini, per favore", "DOO-eh ah-DOOL-tee eh DOO-eh bam-BEE-nee", "Two adults and two children, please"], ["Ci sono riduzioni per bambini?", "chee SO-no ree-doo-TSYOH-nee pair bam-BEE-nee", "Are there reductions for children?"], ["Quanti anni hanno?", "KWAN-tee AN-nee AN-no", "How old are they? (they may ask you)"], ["Hanno … e … anni", "AN-no … eh … AN-nee", "They're … and … years old"], ["Dov'è il bagno?", "doh-VEH eel BAN-yo", "Where's the toilet?"], ["A che ora chiude?", "ah keh OR-ah kee-OO-deh", "What time does it close?"], ["Si possono fare foto?", "see POS-so-no FAH-reh FO-toh", "Can we take photos?"]]}, {"cat": "Getting around", "items": [["Dov'è…?", "doh-VEH", "Where is…?"], ["Un taxi per quattro persone, per favore", "oon TAK-see pair KWAT-tro pair-SO-neh", "A taxi for four people, please"], ["All'aeroporto di Fiumicino, per favore", "al-ah-eh-roh-POR-toh dee fyoo-mee-CHEE-no", "To Fiumicino airport, please"], ["Quanto costa?", "KWAN-toh KOS-ta", "How much is it?"], ["Quanto è lontano a piedi?", "KWAN-toh eh lon-TAH-no ah PYEH-dee", "How far is it on foot?"], ["A destra", "ah DESS-tra", "On the right"], ["A sinistra", "ah see-NEE-stra", "On the left"], ["Sempre dritto", "SEM-preh DREET-toh", "Straight on"], ["Quattro biglietti per l'autobus", "KWAT-tro beel-YET-tee pair LOW-toh-boos", "Four bus tickets"]]}, {"cat": "Hotel", "items": [["Possiamo lasciare le valigie?", "pos-SYAH-mo la-SHAH-reh leh va-LEE-jeh", "Can we leave our bags?"], ["Qual è la password del Wi-Fi?", "kwal EH la PASS-word del WAI-fai", "What's the Wi-Fi password?"], ["Ci può chiamare un taxi?", "chee pwoh kya-MAH-reh oon TAK-see", "Could you call us a taxi?"], ["Un altro asciugamano, per favore", "oon AL-tro ah-shoo-ga-MAH-no", "Another towel, please"]]}, {"cat": "Help", "items": [["Aiuto!", "ah-YOO-toh", "Help!"], ["Ho perso mio figlio", "oh PAIR-so MEE-oh FEEL-yo", "I've lost my son"], ["Ho perso mia figlia", "oh PAIR-so MEE-ah FEEL-ya", "I've lost my daughter"], ["Mio figlio sta male", "MEE-oh FEEL-yo sta MAH-leh", "My son is unwell"], ["Mia figlia sta male", "MEE-ah FEEL-ya sta MAH-leh", "My daughter is unwell"], ["È allergico a…", "eh al-LAIR-jee-ko ah", "He's allergic to…"], ["È allergica a…", "eh al-LAIR-jee-ka ah", "She's allergic to…"], ["Dov'è la farmacia più vicina?", "doh-VEH la far-ma-CHEE-ah pyoo vee-CHEE-na", "Where's the nearest pharmacy?"], ["Chiami un'ambulanza!", "KYAH-mee oo-nam-boo-LAN-tsa", "Call an ambulance!"]]}, {"cat": "Numbers", "items": [["Uno", "OO-no", "1"], ["Due", "DOO-eh", "2"], ["Tre", "treh", "3"], ["Quattro", "KWAT-tro", "4"], ["Cinque", "CHEEN-kweh", "5"], ["Sei", "say", "6"], ["Sette", "SET-teh", "7"], ["Otto", "OT-toh", "8"], ["Nove", "NO-veh", "9"], ["Dieci", "DYEH-chee", "10"], ["Undici", "OON-dee-chee", "11"], ["Dodici", "DOH-dee-chee", "12"], ["Venti", "VEN-tee", "20"], ["Cinquanta", "cheen-KWAN-ta", "50"], ["Cento", "CHEN-toh", "100"]]}];
+const phr=document.getElementById("phr"),phList=document.getElementById("phList"),phChips=document.getElementById("phChips");
+const canSpeak=("speechSynthesis" in window)&&typeof SpeechSynthesisUtterance!=="undefined";
+function sayIt(t){if(!canSpeak)return;try{const u=new SpeechSynthesisUtterance(t.replace(/\u2026/g,""));u.lang="it-IT";u.rate=0.85;
+  const v=speechSynthesis.getVoices().find(x=>/^it/i.test(x.lang));if(v)u.voice=v;speechSynthesis.cancel();speechSynthesis.speak(u);}catch(e){}}
+function esc(s){return s.replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));}
+function renderPhrases(){
+  let h="",c="";
+  PHRASES.forEach((g,gi)=>{
+    c+='<button type="button" class="chip" data-g="'+gi+'">'+esc(g.cat)+'</button>';
+    h+='<h3 id="phg-'+gi+'">'+esc(g.cat)+'</h3><div'+(g.cat==="Numbers"?' class="numgrid"':'')+'>';
+    g.items.forEach(p=>{h+='<div class="pr"><div class="t"><div class="it" lang="it">'+esc(p[0])+'</div><div class="say">'+esc(p[1])+'</div><div class="en">'+esc(p[2])+'</div></div>'+
+      (canSpeak?'<button type="button" class="play" data-say="'+esc(p[0])+'" aria-label="Say '+esc(p[0])+'">\u25b6</button>':'')+'</div>';});
+    h+='</div>';
+  });
+  phList.innerHTML=h;phChips.innerHTML=c;
+  phList.querySelectorAll(".play").forEach(b=>b.addEventListener("click",()=>sayIt(b.dataset.say)));
+  phChips.querySelectorAll(".chip").forEach(b=>b.addEventListener("click",()=>{const el=document.getElementById("phg-"+b.dataset.g);if(el)phList.scrollTop=el.offsetTop-phList.offsetTop-4;}));
+}
+renderPhrases();
+document.getElementById("phOpen").addEventListener("click",()=>{cardEl.hidden=true;phr.hidden=false;try{localStorage.setItem("rome-phr","1");}catch(e){}});
+document.getElementById("phClose").addEventListener("click",()=>{phr.hidden=true;try{localStorage.removeItem("rome-phr");}catch(e){}if(canSpeak)speechSynthesis.cancel();});
+document.addEventListener("keydown",e=>{if(e.key==="Escape")phr.hidden=true;});
+try{if(localStorage.getItem("rome-phr")==="1")phr.hidden=false;}catch(e){}
 
 // Always render the itinerary first, independent of the 3D map
 renderChips();renderSheet();
